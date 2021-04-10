@@ -1,17 +1,37 @@
-import { Box, Button, Checkbox, Flex, Heading, Icon, Table, Tbody, Td, Text, Th, Thead, Tr, useBreakpointValue } from "@chakra-ui/react";
+import { Box, Button, Checkbox, Flex, Heading, Icon, Spinner, Table, Tbody, Td, Text, Th, Thead, Tr, useBreakpointValue } from "@chakra-ui/react";
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { RiAddLine } from "react-icons/ri";
 import Header from "../../components/Header";
 import { Pagination } from "../../components/Pagination";
 import { Sidebar } from "../../components/Sidebar";
+import { queryClient } from '../../services/queryClient'
+import { getUsers, useUsers } from "../../services/hooks/useUsers";
+import { api } from "../../services/api";
 
 export default function UserList() {
+
+  const [page, setPage] = useState(1)
+  const { data, isLoading, isFetching, error } = useUsers(page)
+
   const isWideVersion = useBreakpointValue({
     base: false,
     lg: true
   });
 
+  async function handlePrefetchUser(userId: string) {
+    await queryClient.prefetchQuery(
+      ['user', userId],
+      async () => {
+        const response = await api.get(`users/${userId}`)
 
+        return response.data
+      },
+      {
+        staleTime: 1000 * 60 * 10 // 10 minutes
+      }
+    )
+  }
 
   return (
     <Box>
@@ -23,6 +43,7 @@ export default function UserList() {
           <Flex mb="8" justify="space-between" align="center">
             <Heading size="lg" fontWeight="normal" align="center">
               Usuários
+              {!isLoading && isFetching && <Spinner size="sm" color="gray.500" ml="4" />}
             </Heading>
             {isWideVersion ?
               <Link href="/users/create" passHref>
@@ -46,39 +67,57 @@ export default function UserList() {
               </Link>}
           </Flex>
 
-          <Table colorScheme="whiteAlpha">
-            <Thead>
-              <Tr>
-                <Th px={["4", "4", "6"]} color="gray.300" width="8">
-                  <Checkbox colorScheme="pink" />
+          {isLoading ? (
+            <Flex justify="center">
+              <Spinner />
+            </Flex>
+          ) : error ? (
+            <Flex justify="center">
+              <Text>Falha ao obter dados de usuários</Text>
+            </Flex>
+          ) : (
+            <>
+              <Table colorScheme="whiteAlpha">
+                <Thead>
+                  <Tr>
+                    <Th px={["4", "4", "6"]} color="gray.300" width="8">
+                      <Checkbox colorScheme="pink" />
+                    </Th>
+                    <Th>
+                      Usuário
                 </Th>
-                <Th>
-                  Usuário
-                </Th>
-                {isWideVersion && <Th>
-                  Data de cadastro
+                    {isWideVersion && <Th>
+                      Data de cadastro
                 </Th>}
-              </Tr>
-            </Thead>
-            <Tbody>
-              <Tr>
-                <Td px={["4", "4", "6"]} color="gray.300" width="8">
-                  <Checkbox colorScheme="pink" />
-                </Td>
-                <Td>
-                  <Box>
-                    <Text fontWeight="bold">Leandro Cruvinel</Text>
-                    <Text fontSize="sm" color="gray.300">leandro@leandro.com</Text>
-                  </Box>
-                </Td>
-                {isWideVersion && <Td>
-                  04 de abril de 2021
-                </Td>}
-              </Tr>
-            </Tbody>
-          </Table>
+                  </Tr>
+                </Thead>
+                <Tbody>
+                  {data.users.map(user =>
+                    <Tr key={user.id}>
+                      <Td px={["4", "4", "6"]} color="gray.300" width="8">
+                        <Checkbox colorScheme="pink" />
+                      </Td>
+                      <Td>
+                        <Box>
+                          <Text onMouseOver={() => handlePrefetchUser(user.id)} fontWeight="bold">{user.name}</Text>
+                          <Text fontSize="sm" color="gray.300">{user.email}</Text>
+                        </Box>
+                      </Td>
+                      {isWideVersion && <Td>
+                        {user.created_at}
+                      </Td>}
+                    </Tr>)}
+                </Tbody>
+              </Table>
+              <Pagination
+                totalCountOfRegisters={data.totalCount}
+                currentPage={page}
+                onPageChange={setPage}
+              />
+            </>
+          )}
 
-          <Pagination />
+
         </Box>
       </ Flex>
     </Box>
